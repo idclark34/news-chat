@@ -28,6 +28,8 @@ export default function App() {
   const [visibleCount, setVisibleCount] = useState(0);
   const [loadStep, setLoadStep] = useState(0);
   const [cachedBriefing, setCachedBriefing] = useState(null);
+  const [sources, setSources] = useState([]);
+  const [refsOpen, setRefsOpen] = useState(false);
   const feedRef = useRef(null);
   const [theme, setTheme] = useState(() => {
     try { const s = localStorage.getItem("nc-theme"); if (s) return s; } catch {}
@@ -43,12 +45,13 @@ export default function App() {
   const todayKey = new Date().toISOString().slice(0, 10); // "2026-02-15"
 
   // Save briefing to storage
-  const saveBriefing = async (topics, msgs) => {
+  const saveBriefing = async (topics, msgs, srcs) => {
     try {
       await window.storage.set("nc-briefing", JSON.stringify({
         date: todayKey,
         topics,
         messages: msgs,
+        sources: srcs,
       }));
     } catch (e) { console.error("Storage save failed:", e); }
   };
@@ -120,7 +123,25 @@ Your entire response must be parseable by JSON.parse(). Start with [ and end wit
       });
       if (!resp.ok) throw new Error(`API ${resp.status}`);
       const data = await resp.json();
-      const fullText = (data.content || []).filter((b) => b.type === "text" && b.text).map((b) => b.text).join("\n");
+      const blocks = data.content || [];
+      // Extract citation sources from text block citations and web search result blocks
+      const rawSources = [];
+      for (const b of blocks) {
+        if (b.type === "text" && b.citations) {
+          for (const c of b.citations) {
+            if (c.url && c.title) rawSources.push({ url: c.url, title: c.title });
+          }
+        }
+        if (b.type === "web_search_tool_result" && b.content) {
+          for (const r of b.content) {
+            if (r.type === "web_search_result" && r.url && r.title) rawSources.push({ url: r.url, title: r.title });
+          }
+        }
+      }
+      const seen = new Set();
+      const uniqueSources = rawSources.filter((s) => { if (seen.has(s.url)) return false; seen.add(s.url); return true; });
+      setSources(uniqueSources);
+      const fullText = blocks.filter((b) => b.type === "text" && b.text).map((b) => b.text).join("\n");
       if (!fullText.trim()) throw new Error("Empty response");
       const cleaned = fullText.replace(/```json/g, "").replace(/```/g, "").trim();
       const si = cleaned.indexOf("["), ei = cleaned.lastIndexOf("]");
@@ -132,7 +153,7 @@ Your entire response must be parseable by JSON.parse(). Start with [ and end wit
         speaker: m.speaker === "Zoe" ? "Zoe" : "Kai", text: m.text, topic: selected.includes(m.topic) ? m.topic : selected[0],
       }));
       if (valid.length < 3) throw new Error("Too few messages");
-      await saveBriefing(selected, valid);
+      await saveBriefing(selected, valid, uniqueSources);
       setMessages(valid);
       setPhase("chat");
     } catch (err) { setError(err.message); setPhase("select"); }
@@ -142,6 +163,7 @@ Your entire response must be parseable by JSON.parse(). Start with [ and end wit
     if (!cachedBriefing) return;
     setSelected(cachedBriefing.topics);
     setMessages(cachedBriefing.messages);
+    setSources(cachedBriefing.sources || []);
     setPhase("chat");
   };
 
@@ -150,7 +172,7 @@ Your entire response must be parseable by JSON.parse(). Start with [ and end wit
     fetchNews();
   };
 
-  const reset = () => { setPhase("select"); setMessages([]); setVisibleCount(0); setError(null); };
+  const reset = () => { setPhase("select"); setMessages([]); setVisibleCount(0); setError(null); setSources([]); setRefsOpen(false); };
   const getT = (id) => TOPICS.find((t) => t.id === id) || TOPICS[0];
 
   // ═══════════ INIT (checking cache) ═══════════
@@ -285,6 +307,25 @@ Your entire response must be parseable by JSON.parse(). Start with [ and end wit
             <div className="nc-end">
               <div className="nc-end-bar" />
               <div className="nc-end-label">End of briefing · {messages.length} messages across {selected.length} topics</div>
+              {sources.length > 0 && (
+                <>
+                  <div className="nc-refs-toggle" onClick={() => setRefsOpen((o) => !o)}>
+                    <span className={`nc-refs-chevron ${refsOpen ? "open" : ""}`}>›</span>
+                    <span>🔗 {sources.length} source{sources.length !== 1 ? "s" : ""}</span>
+                  </div>
+                  <div className={`nc-refs-list ${refsOpen ? "open" : ""}`}>
+                    {sources.map((s, i) => {
+                      let domain; try { domain = new URL(s.url).hostname.replace(/^www\./, ""); } catch { domain = ""; }
+                      return (
+                        <a key={i} className="nc-ref-item" href={s.url} target="_blank" rel="noopener noreferrer">
+                          <span className="nc-ref-title">{s.title}</span>
+                          {domain && <span className="nc-ref-domain">{domain}</span>}
+                        </a>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
               <button onClick={reset} className="nc-end-btn">Choose New Topics</button>
             </div>
           )}
@@ -530,6 +571,39 @@ const CSS = `
     border-radius:10px; padding:9px 18px; cursor:pointer; font-family:'Sora',sans-serif;
   }
   .nc-end-btn:hover { background:rgba(168,85,247,.1); }
+
+  /* ── REFERENCES ── */
+  .nc-refs-toggle {
+    display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+    font-size:12px; font-weight:600; color:var(--text-dim);
+    padding:6px 14px; border-radius:8px; margin-bottom:8px;
+    transition:color .2s ease;
+  }
+  .nc-refs-toggle:hover { color:var(--text-secondary); }
+  .nc-refs-chevron {
+    display:inline-block; font-size:14px; font-weight:700;
+    transition:transform .25s ease;
+  }
+  .nc-refs-chevron.open { transform:rotate(90deg); }
+  .nc-refs-list {
+    max-height:0; overflow:hidden; transition:max-height .3s ease;
+    display:flex; flex-direction:column; gap:2px;
+    text-align:left; padding:0 20px; margin-bottom:4px;
+  }
+  .nc-refs-list.open { max-height:600px; margin-bottom:12px; }
+  .nc-ref-item {
+    display:flex; align-items:baseline; gap:8px; padding:6px 10px;
+    border-radius:8px; text-decoration:none; transition:background .15s ease;
+  }
+  .nc-ref-item:hover { background:var(--btn-hover-bg); }
+  .nc-ref-title {
+    font-size:12.5px; font-weight:500; color:var(--text-secondary);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex:1;
+  }
+  .nc-ref-domain {
+    font-size:10.5px; font-weight:500; color:var(--text-faint);
+    white-space:nowrap; flex-shrink:0;
+  }
 
   @keyframes ncFadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
   @keyframes ncMsgIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
