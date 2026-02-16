@@ -94,6 +94,9 @@ async function start() {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
 
+  // ─── Health check ─────────────────────────────────────────────
+  app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
   // ─── Briefing endpoint: cache-first, then LLM ─────────────────
   app.post("/api/briefings", async (req, res) => {
     const { topics } = req.body;
