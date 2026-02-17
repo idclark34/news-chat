@@ -1,9 +1,7 @@
-import Database from "better-sqlite3";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+const Database = require("better-sqlite3");
+const fs = require("fs");
+const path = require("path");
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, "..", "data");
 const dbPath = path.join(dataDir, "briefings.db");
 
@@ -28,7 +26,7 @@ function buildCacheKey(date, topics) {
   return `${date}:${[...topics].sort().join(",")}`;
 }
 
-export function getCachedBriefing(date, topics) {
+function getCachedBriefing(date, topics) {
   const key = buildCacheKey(date, topics);
   const row = db.prepare("SELECT topics, messages, sources FROM briefings WHERE cache_key = ?").get(key);
   if (!row) return null;
@@ -39,7 +37,7 @@ export function getCachedBriefing(date, topics) {
   };
 }
 
-export function saveBriefing(date, topics, messages, sources) {
+function saveBriefing(date, topics, messages, sources) {
   const key = buildCacheKey(date, topics);
   db.prepare(`
     INSERT OR REPLACE INTO briefings (cache_key, date, topics, messages, sources)
@@ -47,9 +45,11 @@ export function saveBriefing(date, topics, messages, sources) {
   `).run(key, date, JSON.stringify(topics), JSON.stringify(messages), JSON.stringify(sources));
 }
 
-export function cleanOldBriefings(daysToKeep = 7) {
+function cleanOldBriefings(daysToKeep = 7) {
   const result = db.prepare("DELETE FROM briefings WHERE date < date('now', ? || ' days')").run(`-${daysToKeep}`);
   if (result.changes > 0) {
     console.log(`Cleaned ${result.changes} old briefing(s) from cache`);
   }
 }
+
+module.exports = { getCachedBriefing, saveBriefing, cleanOldBriefings };

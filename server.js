@@ -1,17 +1,12 @@
-import express from "express";
-import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
+const express = require("express");
+const dotenv = require("dotenv");
+const path = require("path");
+const { getCachedBriefing, saveBriefing, cleanOldBriefings } = require("./src/db.js");
 
 dotenv.config();
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
 const isDev = process.env.NODE_ENV !== "production";
-
-// Database functions — loaded lazily to prevent startup crashes
-let getCachedBriefing, saveBriefing, cleanOldBriefings;
-let dbReady = false;
 
 const TOPICS = [
   { id: "ai", label: "AI & Tech" },
@@ -93,18 +88,7 @@ function parseAnthropicResponse(data, selectedTopics) {
 async function start() {
   console.log(`Starting server (NODE_ENV=${process.env.NODE_ENV}, PORT=${PORT}, isDev=${isDev})`);
 
-  // Initialize database lazily — if it fails, the server still starts
-  try {
-    const db = await import("./src/db.js");
-    getCachedBriefing = db.getCachedBriefing;
-    saveBriefing = db.saveBriefing;
-    cleanOldBriefings = db.cleanOldBriefings;
-    cleanOldBriefings(7);
-    dbReady = true;
-    console.log("Database initialized successfully");
-  } catch (err) {
-    console.error("Database initialization failed:", err);
-  }
+  cleanOldBriefings(7);
 
   const app = express();
   app.use(express.json({ limit: "1mb" }));
@@ -114,10 +98,6 @@ async function start() {
 
   // ─── Briefing endpoint: cache-first, then LLM ─────────────────
   app.post("/api/briefings", async (req, res) => {
-    if (!dbReady) {
-      return res.status(503).json({ error: "Database not available" });
-    }
-
     const { topics } = req.body;
 
     if (!Array.isArray(topics) || topics.length === 0) {
@@ -207,24 +187,17 @@ async function start() {
   });
 
   // ─── Dev: attach Vite middleware ─────────────────────────────────
-  let useStatic = true;
   if (isDev) {
-    try {
-      const { createServer: createViteServer } = await import("vite");
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: "spa",
-      });
-      app.use(vite.middlewares);
-      useStatic = false;
-    } catch (err) {
-      console.error("Vite not available, falling back to static files:", err.message);
-    }
-  }
-  if (useStatic) {
-    // ─── Serve built static files ────────────────────────────────
+    const { createServer: createViteServer } = await import("vite");
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    // ─── Production: serve built static files ────────────────────
     app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (_req, res) => {
+    app.get("/{*path}", (_req, res) => {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
     });
   }
