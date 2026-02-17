@@ -10,4 +10,4 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 ENV NODE_ENV=production
-CMD ["node", "server.js"]
+CMD ["sh", "-c", "NODE_ENV=production exec node server.js"]

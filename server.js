@@ -207,15 +207,22 @@ async function start() {
   });
 
   // ─── Dev: attach Vite middleware ─────────────────────────────────
+  let useStatic = true;
   if (isDev) {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    // ─── Production: serve built static files ────────────────────
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+      useStatic = false;
+    } catch (err) {
+      console.error("Vite not available, falling back to static files:", err.message);
+    }
+  }
+  if (useStatic) {
+    // ─── Serve built static files ────────────────────────────────
     app.use(express.static(path.join(__dirname, "dist")));
     app.get("*", (_req, res) => {
       res.sendFile(path.join(__dirname, "dist", "index.html"));
