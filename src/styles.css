@@ -267,6 +267,37 @@
   white-space:nowrap; flex-shrink:0;
 }
 
+/* ── SUGGESTIONS ── */
+.nc-suggestions {
+  display:flex; flex-wrap:wrap; gap:6px;
+  padding:4px 20px 8px 68px;
+}
+.nc-suggestion-chip {
+  font-size:12px; font-weight:500; font-family:'Sora',sans-serif;
+  padding:4px 11px; border-radius:20px;
+  border:1px solid rgba(168,85,247,.2);
+  color:#a855f7; background:rgba(168,85,247,.05);
+  cursor:pointer; transition:all .15s ease;
+}
+.nc-suggestion-chip:hover { background:rgba(168,85,247,.1); border-color:rgba(168,85,247,.35); }
+
+/* ── FOLLOW-UP THREAD ── */
+.nc-followup {
+  margin:2px 20px 10px 68px;
+  border-left:2px solid rgba(168,85,247,.2);
+  padding-left:14px;
+  animation:ncFadeUp .25s ease;
+}
+.nc-followup-q {
+  font-size:11.5px; font-weight:500; font-style:italic;
+  color:var(--text-faint); margin-bottom:10px;
+}
+.nc-followup-msg { margin-bottom:8px; }
+.nc-followup-name { font-size:11.5px; font-weight:700; margin-bottom:2px; }
+.nc-followup-text { font-size:13.5px; line-height:1.55; color:var(--text-secondary); }
+.nc-followup-loading { display:flex; gap:5px; padding:4px 0 6px; }
+.nc-followup-error { font-size:12px; color:#f87171; margin-top:4px; }
+
 @keyframes ncFadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
 @keyframes ncMsgIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
 @keyframes ncSpin { to{transform:rotate(360deg)} }

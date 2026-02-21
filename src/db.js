@@ -22,6 +22,18 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS news_cache (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    topic_id TEXT NOT NULL,
+    date TEXT NOT NULL,
+    content TEXT NOT NULL,
+    sources TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(topic_id, date)
+  )
+`);
+
 function buildCacheKey(date, topics) {
   return `${date}:${[...topics].sort().join(",")}`;
 }
@@ -46,10 +58,23 @@ function saveBriefing(date, topics, messages, sources) {
 }
 
 function cleanOldBriefings(daysToKeep = 7) {
-  const result = db.prepare("DELETE FROM briefings WHERE date < date('now', ? || ' days')").run(`-${daysToKeep}`);
-  if (result.changes > 0) {
-    console.log(`Cleaned ${result.changes} old briefing(s) from cache`);
-  }
+  const cutoff = `-${daysToKeep}`;
+  const b = db.prepare("DELETE FROM briefings WHERE date < date('now', ? || ' days')").run(cutoff);
+  const n = db.prepare("DELETE FROM news_cache WHERE date < date('now', ? || ' days')").run(cutoff);
+  if (b.changes > 0) console.log(`Cleaned ${b.changes} old briefing(s) from cache`);
+  if (n.changes > 0) console.log(`Cleaned ${n.changes} old news cache entries`);
 }
 
-module.exports = { getCachedBriefing, saveBriefing, cleanOldBriefings };
+function getCachedNews(date, topicId) {
+  const row = db.prepare("SELECT content, sources FROM news_cache WHERE topic_id = ? AND date = ?").get(topicId, date);
+  if (!row) return null;
+  return { content: row.content, sources: JSON.parse(row.sources) };
+}
+
+function saveNews(date, topicId, content, sources) {
+  db.prepare("INSERT OR REPLACE INTO news_cache (topic_id, date, content, sources) VALUES (?, ?, ?, ?)").run(
+    topicId, date, content, JSON.stringify(sources)
+  );
+}
+
+module.exports = { getCachedBriefing, saveBriefing, cleanOldBriefings, getCachedNews, saveNews };

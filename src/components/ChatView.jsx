@@ -1,8 +1,21 @@
 import { useState, forwardRef } from "react";
+import { fetchFollowup } from "../api.js";
 import { SPEAKERS, today, getTopic } from "../constants.js";
 
 const ChatView = forwardRef(function ChatView({ messages, visibleCount, sources, selected, theme, onToggleTheme, onRefresh, onReset }, feedRef) {
   const [refsOpen, setRefsOpen] = useState(false);
+  const [followups, setFollowups] = useState({}); // { [msgIndex]: { question, messages, loading, error } }
+
+  const handleSuggestion = async (i, msg, question) => {
+    if (followups[i]?.loading) return;
+    setFollowups((prev) => ({ ...prev, [i]: { question, messages: [], loading: true } }));
+    try {
+      const result = await fetchFollowup(msg.text, question, msg.topic);
+      setFollowups((prev) => ({ ...prev, [i]: { question, messages: result.messages, loading: false } }));
+    } catch (err) {
+      setFollowups((prev) => ({ ...prev, [i]: { question, messages: [], loading: false, error: err.message } }));
+    }
+  };
 
   let lastSp = null, lastTp = null;
   return (
@@ -29,6 +42,7 @@ const ChatView = forwardRef(function ChatView({ messages, visibleCount, sources,
           const topicSwitch = msg.topic !== lastTp;
           const tInfo = getTopic(msg.topic);
           lastSp = msg.speaker; lastTp = msg.topic;
+          const followup = followups[i];
           return (
             <div key={i}>
               {topicSwitch && (
@@ -41,6 +55,39 @@ const ChatView = forwardRef(function ChatView({ messages, visibleCount, sources,
                   <div className="nc-msg-text">{msg.text}</div>
                 </div>
               </div>
+
+              {/* Suggestion chips */}
+              {msg.suggestions?.length > 0 && !followup && (
+                <div className="nc-suggestions">
+                  {msg.suggestions.map((q, si) => (
+                    <button key={si} className="nc-suggestion-chip" onClick={() => handleSuggestion(i, msg, q)}>
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Inline follow-up thread */}
+              {followup && (
+                <div className="nc-followup">
+                  <div className="nc-followup-q">"{followup.question}"</div>
+                  {followup.loading && (
+                    <div className="nc-followup-loading">
+                      {[0, 1, 2].map((d) => <div key={d} className="nc-tdot" style={{ animationDelay: `${d * 0.15}s` }} />)}
+                    </div>
+                  )}
+                  {followup.messages.map((fm, fi) => {
+                    const fsp = SPEAKERS[fm.speaker] || SPEAKERS.Kai;
+                    return (
+                      <div key={fi} className="nc-followup-msg">
+                        <div className="nc-followup-name" style={{ color: fsp.color }}>{fm.speaker}</div>
+                        <div className="nc-followup-text">{fm.text}</div>
+                      </div>
+                    );
+                  })}
+                  {followup.error && <div className="nc-followup-error">{followup.error}</div>}
+                </div>
+              )}
             </div>
           );
         })}
