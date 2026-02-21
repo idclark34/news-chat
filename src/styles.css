@@ -267,6 +267,86 @@
   white-space:nowrap; flex-shrink:0;
 }
 
+/* ── CARD ANIMATIONS ── */
+.nc-card-anim {
+  margin-top:10px; height:22px; display:flex; align-items:center;
+  opacity:0.35; transition:opacity .25s ease;
+}
+.nc-card:hover .nc-card-anim, .nc-card.on .nc-card-anim { opacity:0.8; }
+
+/* AI — pulsing data dots */
+@keyframes ncAiDot {
+  0%,100% { opacity:.15; transform:scale(.6); }
+  50%      { opacity:1;   transform:scale(1); }
+}
+.nc-anim-ai-dot { animation:ncAiDot 1.4s ease infinite; transform-box:fill-box; transform-origin:center; }
+
+/* Fitness / Medicine — heartbeat & EKG */
+@keyframes ncHeartbeat {
+  0%   { stroke-dashoffset:110; }
+  55%  { stroke-dashoffset:0; }
+  100% { stroke-dashoffset:0; }
+}
+@keyframes ncEkg {
+  0%   { stroke-dashoffset:120; }
+  55%  { stroke-dashoffset:0; }
+  100% { stroke-dashoffset:0; }
+}
+.nc-anim-heartbeat { stroke-dasharray:110; stroke-dashoffset:110; animation:ncHeartbeat 2.2s ease infinite; }
+.nc-anim-ekg       { stroke-dasharray:120; stroke-dashoffset:120; animation:ncEkg 2.2s ease infinite; }
+
+/* Startups — rising bars */
+@keyframes ncBar {
+  0%,100% { transform:scaleY(.25); opacity:.5; }
+  50%     { transform:scaleY(1);   opacity:1; }
+}
+.nc-anim-bar { animation:ncBar 1.6s ease infinite; transform-box:fill-box; transform-origin:bottom; }
+
+/* World — expanding rings */
+@keyframes ncRing {
+  0%   { opacity:.9; transform:scale(.3); }
+  100% { opacity:0;  transform:scale(1); }
+}
+.nc-anim-ring { animation:ncRing 2.2s ease-out infinite; transform-box:fill-box; transform-origin:center; }
+
+/* Science — spinning orbital */
+@keyframes ncSpin { to { transform:rotate(360deg); } }
+.nc-anim-spin { animation:ncSpin 3s linear infinite; transform-box:fill-box; transform-origin:center; }
+
+/* Finance — chart line drawing */
+@keyframes ncChart {
+  0%   { stroke-dashoffset:110; }
+  60%  { stroke-dashoffset:0; }
+  100% { stroke-dashoffset:0; }
+}
+.nc-anim-chart { stroke-dasharray:110; stroke-dashoffset:110; animation:ncChart 2.8s ease infinite; }
+
+/* Sports — bouncing ball + shadow */
+@keyframes ncBounce {
+  0%,100% { transform:translateY(0); animation-timing-function:ease-in; }
+  50%     { transform:translateY(10px); animation-timing-function:ease-out; }
+}
+@keyframes ncShadow {
+  0%,100% { transform:scaleX(.6); opacity:.08; }
+  50%     { transform:scaleX(1);  opacity:.18; }
+}
+.nc-anim-bounce { animation:ncBounce 1s ease infinite; transform-box:fill-box; transform-origin:center; }
+.nc-anim-shadow { animation:ncShadow 1s ease infinite; transform-box:fill-box; transform-origin:center; }
+
+/* Entertainment — twinkling stars */
+@keyframes ncStar {
+  0%,100% { opacity:.1; transform:scale(.5); }
+  50%     { opacity:1;  transform:scale(1); }
+}
+.nc-anim-star { animation:ncStar 1.8s ease infinite; transform-box:fill-box; transform-origin:center; }
+
+/* Politics — wave lines */
+@keyframes ncWaveline {
+  0%,100% { opacity:.15; transform:scaleX(.6); }
+  50%     { opacity:1;   transform:scaleX(1); }
+}
+.nc-anim-waveline { animation:ncWaveline 1.8s ease infinite; transform-box:fill-box; transform-origin:left; }
+
 /* ── SUGGESTIONS ── */
 .nc-suggestions {
   display:flex; flex-wrap:wrap; gap:6px;
