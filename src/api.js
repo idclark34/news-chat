@@ -1,3 +1,9 @@
+export async function fetchHeadlines() {
+  const resp = await fetch("/api/headlines");
+  if (!resp.ok) return {};
+  return resp.json();
+}
+
 export async function fetchFollowup(message, question, topic) {
   const resp = await fetch("/api/followup", {
     method: "POST",

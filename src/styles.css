@@ -267,6 +267,16 @@
   white-space:nowrap; flex-shrink:0;
 }
 
+/* ── TYPEWRITER CURSOR ── */
+.nc-card-desc-type { min-height: 2.8em; }
+.nc-cursor {
+  display:inline-block; width:1.5px; height:.85em;
+  background:var(--tc, currentColor); margin-left:1px;
+  vertical-align:middle; border-radius:1px;
+  animation:ncCursorBlink .75s step-end infinite;
+}
+@keyframes ncCursorBlink { 0%,100%{opacity:1} 50%{opacity:0} }
+
 /* ── CARD ANIMATIONS ── */
 .nc-card-anim {
   margin-top:10px; height:22px; display:flex; align-items:center;

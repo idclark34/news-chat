@@ -28,12 +28,14 @@ const VALID_TOPIC_IDS = new Set(TOPICS.map((t) => t.id));
 function buildNewsPrompt(topicLabel) {
   return `Search the web for TODAY's most important and recent news about: ${topicLabel}.
 
-Find the 5-7 most significant stories from today. For each story include:
-- Headline and key facts
-- Important numbers, names, dates, and quotes
-- Why it matters
+Find the 5-7 most significant stories. Return ONLY a valid JSON object with exactly these two fields:
 
-Be specific and factual. Return a plain text summary only.`;
+{
+  "content": "A detailed plain text summary covering all stories. For each: headline, key facts, important numbers, names, quotes, and why it matters.",
+  "headlines": ["3-5 ultra-short headlines (under 8 words each) in casual Gen Z style teasing the biggest stories. Punchy and fun but accurate. Use natural Gen Z phrasing where it fits — e.g. 'the fed did what 💀', 'this startup just ate ngl', 'scientists found something kinda unhinged'. Don't force it if it doesn't fit."]
+}
+
+Return ONLY valid JSON. No markdown, no backticks, no extra text before or after.`;
 }
 
 function buildDialoguePrompt(selectedTopics, newsMap) {
@@ -192,10 +194,23 @@ async function fetchNewsForTopic(topicId, apiKey) {
   const seen = new Set();
   const sources = rawSources.filter((s) => { if (seen.has(s.url)) return false; seen.add(s.url); return true; });
 
-  const content = blocks.filter((b) => b.type === "text" && b.text).map((b) => b.text).join("\n");
-  if (!content.trim()) throw new Error("Empty news response");
+  const rawText = blocks.filter((b) => b.type === "text" && b.text).map((b) => b.text).join("\n");
+  if (!rawText.trim()) throw new Error("Empty news response");
 
-  return { content, sources };
+  // Parse structured JSON response
+  let content = rawText;
+  let headlines = [];
+  try {
+    const cleaned = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+    const si = cleaned.indexOf("{"), ei = cleaned.lastIndexOf("}");
+    if (si !== -1 && ei > si) {
+      const parsed = JSON.parse(cleaned.slice(si, ei + 1));
+      if (parsed.content) content = parsed.content;
+      if (Array.isArray(parsed.headlines)) headlines = parsed.headlines.slice(0, 5);
+    }
+  } catch (_) { /* fall back to raw text as content */ }
+
+  return { content, sources, headlines };
 }
 
 // Generate dialogue from pre-fetched news (no web search — fast)
@@ -236,8 +251,8 @@ async function prefetchAllTopics() {
       continue;
     }
     try {
-      const { content, sources } = await fetchNewsForTopic(topic.id, apiKey);
-      saveNews(today, topic.id, content, sources);
+      const { content, sources, headlines } = await fetchNewsForTopic(topic.id, apiKey);
+      saveNews(today, topic.id, content, sources, headlines);
       fetched++;
       console.log(`[prefetch] ✓ ${topic.label}`);
     } catch (err) {
@@ -280,6 +295,17 @@ async function start() {
 
   // ─── Health check ──────────────────────────────────────────────
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
+
+  // ─── Headlines endpoint ────────────────────────────────────────
+  app.get("/api/headlines", (_req, res) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const result = {};
+    for (const topic of TOPICS) {
+      const cached = getCachedNews(today, topic.id);
+      if (cached?.headlines?.length) result[topic.id] = cached.headlines;
+    }
+    res.json(result);
+  });
 
   // ─── Prefetch status ───────────────────────────────────────────
   app.get("/api/prefetch-status", (_req, res) => {

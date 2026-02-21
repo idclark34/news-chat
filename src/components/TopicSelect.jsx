@@ -1,4 +1,61 @@
+import { useState, useEffect } from "react";
 import { TOPICS, today, getTopic } from "../constants.js";
+import { fetchHeadlines } from "../api.js";
+
+// Typewriter hook — cycles through headlines with type/backspace
+function useTypewriter(headlines, initialDelay = 0) {
+  const [display, setDisplay] = useState("");
+
+  useEffect(() => {
+    if (!headlines?.length) return;
+    let cancelled = false;
+
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    async function cycle() {
+      await sleep(initialDelay);
+      let idx = 0;
+      while (!cancelled) {
+        const text = headlines[idx % headlines.length];
+
+        // Type out
+        for (let i = 0; i <= text.length; i++) {
+          if (cancelled) return;
+          setDisplay(text.slice(0, i));
+          await sleep(65 + Math.random() * 30); // slight jitter feels natural
+        }
+
+        await sleep(1800);
+
+        // Backspace
+        for (let i = text.length; i >= 0; i--) {
+          if (cancelled) return;
+          setDisplay(text.slice(0, i));
+          await sleep(32);
+        }
+
+        await sleep(350);
+        idx++;
+      }
+    }
+
+    cycle();
+    return () => { cancelled = true; };
+  }, [headlines, initialDelay]);
+
+  return display;
+}
+
+function CardDesc({ headlines, staticDesc, initialDelay }) {
+  const typed = useTypewriter(headlines, initialDelay);
+  if (!headlines?.length) return <div className="nc-card-desc">{staticDesc}</div>;
+  return (
+    <div className="nc-card-desc nc-card-desc-type">
+      {typed || <span style={{ opacity: 0 }}>{staticDesc}</span>}
+      <span className="nc-cursor" />
+    </div>
+  );
+}
 
 function TopicAnimation({ id, color }) {
   const s = { color };
@@ -94,6 +151,12 @@ function TopicAnimation({ id, color }) {
 }
 
 export default function TopicSelect({ selected, onToggle, onGenerate, cachedBriefing, onLoadCached, error, theme, onToggleTheme }) {
+  const [headlines, setHeadlines] = useState({});
+
+  useEffect(() => {
+    fetchHeadlines().then(setHeadlines).catch(() => {});
+  }, []);
+
   return (
     <div className="nc-select">
       <div className="nc-select-hdr">
@@ -117,8 +180,9 @@ export default function TopicSelect({ selected, onToggle, onGenerate, cachedBrie
           <div className="nc-resume-arrow">→</div>
         </div>
       )}
+
       <div className="nc-grid">
-        {TOPICS.map((t) => {
+        {TOPICS.map((t, i) => {
           const on = selected.includes(t.id);
           return (
             <div key={t.id} onClick={() => onToggle(t.id)} className={`nc-card ${on ? "on" : ""}`}
@@ -128,7 +192,11 @@ export default function TopicSelect({ selected, onToggle, onGenerate, cachedBrie
                 <div className={`nc-radio ${on ? "on" : ""}`}>{on && <div className="nc-radio-dot" />}</div>
               </div>
               <div className="nc-card-label">{t.label}</div>
-              <div className="nc-card-desc">{t.desc}</div>
+              <CardDesc
+                headlines={headlines[t.id]}
+                staticDesc={t.desc}
+                initialDelay={i * 400}
+              />
               <div className="nc-card-anim">
                 <TopicAnimation id={t.id} color={t.color} />
               </div>
@@ -136,6 +204,7 @@ export default function TopicSelect({ selected, onToggle, onGenerate, cachedBrie
           );
         })}
       </div>
+
       {error && <div className="nc-err">Failed: {error}. Try again.</div>}
       <button onClick={onGenerate} disabled={!selected.length} className="nc-cta" style={{ opacity: selected.length ? 1 : 0.25 }}>
         Generate Briefing <span className="nc-cta-n">{selected.length}</span>
