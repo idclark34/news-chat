@@ -65,22 +65,24 @@ function cleanOldBriefings(daysToKeep = 7) {
   if (n.changes > 0) console.log(`Cleaned ${n.changes} old news cache entries`);
 }
 
-// Safe migration — add headlines column if it doesn't exist yet
+// Safe migrations — add columns if they don't exist yet
 try { db.exec("ALTER TABLE news_cache ADD COLUMN headlines TEXT NOT NULL DEFAULT '[]'"); } catch (_) {}
+try { db.exec("ALTER TABLE news_cache ADD COLUMN images TEXT DEFAULT '[]'"); } catch (_) {}
 
 function getCachedNews(date, topicId) {
-  const row = db.prepare("SELECT content, sources, headlines FROM news_cache WHERE topic_id = ? AND date = ?").get(topicId, date);
+  const row = db.prepare("SELECT content, sources, headlines, images FROM news_cache WHERE topic_id = ? AND date = ?").get(topicId, date);
   if (!row) return null;
   return {
     content: row.content,
     sources: JSON.parse(row.sources),
     headlines: JSON.parse(row.headlines || '[]'),
+    images: JSON.parse(row.images || '[]'),
   };
 }
 
-function saveNews(date, topicId, content, sources, headlines = []) {
-  db.prepare("INSERT OR REPLACE INTO news_cache (topic_id, date, content, sources, headlines) VALUES (?, ?, ?, ?, ?)").run(
-    topicId, date, content, JSON.stringify(sources), JSON.stringify(headlines)
+function saveNews(date, topicId, content, sources, headlines = [], images = []) {
+  db.prepare("INSERT OR REPLACE INTO news_cache (topic_id, date, content, sources, headlines, images) VALUES (?, ?, ?, ?, ?, ?)").run(
+    topicId, date, content, JSON.stringify(sources), JSON.stringify(headlines), JSON.stringify(images)
   );
 }
 

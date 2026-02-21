@@ -14,6 +14,7 @@ export default function App() {
   const [loadStep, setLoadStep] = useState(0);
   const [cachedBriefing, setCachedBriefing] = useState(null);
   const [sources, setSources] = useState([]);
+  const [images, setImages] = useState([]);
   const feedRef = useRef(null);
   const [theme, setTheme] = useState(() => {
     try { const s = localStorage.getItem("nc-theme"); if (s) return s; } catch {}
@@ -30,10 +31,10 @@ export default function App() {
   const todayKey = new Date().toISOString().slice(0, 10);
 
   // Save briefing to storage
-  const saveBriefing = async (topics, msgs, srcs) => {
+  const saveBriefing = async (topics, msgs, srcs, imgs) => {
     try {
       await window.storage.set("nc-briefing", JSON.stringify({
-        date: todayKey, topics, messages: msgs, sources: srcs,
+        date: todayKey, topics, messages: msgs, sources: srcs, images: imgs || [],
       }));
     } catch (e) { console.error("Storage save failed:", e); }
   };
@@ -80,8 +81,9 @@ export default function App() {
     setError(null);
     try {
       const result = await fetchBriefing(selected);
-      await saveBriefing(selected, result.messages, result.sources);
+      await saveBriefing(selected, result.messages, result.sources, result.images);
       setSources(result.sources);
+      setImages(result.images || []);
       setMessages(result.messages);
       setPhase("chat");
     } catch (err) { setError(err.message); setPhase("select"); }
@@ -92,10 +94,11 @@ export default function App() {
     setSelected(cachedBriefing.topics);
     setMessages(cachedBriefing.messages);
     setSources(cachedBriefing.sources || []);
+    setImages(cachedBriefing.images || []);
     setPhase("chat");
   };
 
-  const reset = () => { setPhase("select"); setMessages([]); setVisibleCount(0); setError(null); setSources([]); };
+  const reset = () => { setPhase("select"); setMessages([]); setVisibleCount(0); setError(null); setSources([]); setImages([]); };
 
   // ═══════════ INIT ═══════════
   if (phase === "init") return (
@@ -129,7 +132,7 @@ export default function App() {
     <div className={themeClass}>
       <ChatView
         ref={feedRef} messages={messages} visibleCount={visibleCount}
-        sources={sources} selected={selected} theme={theme}
+        sources={sources} images={images} selected={selected} theme={theme}
         onToggleTheme={toggleTheme} onRefresh={fetchNews} onReset={reset}
       />
     </div>

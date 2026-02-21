@@ -2,7 +2,7 @@ import { useState, forwardRef } from "react";
 import { fetchFollowup } from "../api.js";
 import { SPEAKERS, today, getTopic } from "../constants.js";
 
-const ChatView = forwardRef(function ChatView({ messages, visibleCount, sources, selected, theme, onToggleTheme, onRefresh, onReset }, feedRef) {
+const ChatView = forwardRef(function ChatView({ messages, visibleCount, sources, images = [], selected, theme, onToggleTheme, onRefresh, onReset }, feedRef) {
   const [refsOpen, setRefsOpen] = useState(false);
   const [followups, setFollowups] = useState({}); // { [msgIndex]: { question, messages, loading, error } }
 
@@ -17,7 +17,17 @@ const ChatView = forwardRef(function ChatView({ messages, visibleCount, sources,
     }
   };
 
+  // Group images by topic for rendering at dividers
+  const imagesByTopic = {};
+  for (const img of images) {
+    if (img.topicId && img.imageUrl) {
+      if (!imagesByTopic[img.topicId]) imagesByTopic[img.topicId] = [];
+      imagesByTopic[img.topicId].push(img);
+    }
+  }
+
   let lastSp = null, lastTp = null;
+  const renderedImageTopics = new Set();
   return (
     <div className="nc-chat">
       <div className="nc-chat-hdr">
@@ -43,10 +53,24 @@ const ChatView = forwardRef(function ChatView({ messages, visibleCount, sources,
           const tInfo = getTopic(msg.topic);
           lastSp = msg.speaker; lastTp = msg.topic;
           const followup = followups[i];
+          const showImages = topicSwitch && !renderedImageTopics.has(msg.topic) && (imagesByTopic[msg.topic]?.length > 0);
+          if (showImages) renderedImageTopics.add(msg.topic);
           return (
             <div key={i}>
               {topicSwitch && (
                 <div className="nc-div"><div className="nc-div-line" /><span className="nc-div-pill" style={{ "--tc": tInfo.color }}>{tInfo.icon} {tInfo.label}</span><div className="nc-div-line" /></div>
+              )}
+              {showImages && (
+                <div className="nc-img-strip">
+                  {imagesByTopic[msg.topic].slice(0, 2).map((img, idx) => (
+                    <a key={idx} className="nc-polaroid" href={img.url} target="_blank" rel="noopener noreferrer"
+                      style={{ transform: `rotate(${idx % 2 === 0 ? -2.5 : 2}deg)` }}>
+                      <img src={img.imageUrl} alt={img.title}
+                        onError={(e) => { e.currentTarget.parentElement.style.display = "none"; }} />
+                      <div className="nc-polaroid-cap">{img.title}</div>
+                    </a>
+                  ))}
+                </div>
               )}
               <div className={`nc-msg ${chain ? "chain" : ""}`} style={{ animationDelay: "0s" }}>
                 {!chain ? <div className="nc-av" style={{ background: sp.bg }}>{msg.speaker[0]}</div> : <div style={{ width: 36 }} />}

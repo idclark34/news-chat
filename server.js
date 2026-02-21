@@ -232,6 +232,43 @@ async function generateDialogueFromNews(selectedTopics, newsMap, sourcesMap, api
   return { messages, sources };
 }
 
+// ─── OG image scraper ─────────────────────────────────────────────────────────
+
+async function scrapeOgImages(sources) {
+  const results = [];
+  for (const source of sources.slice(0, 5)) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const resp = await fetch(source.url, {
+        signal: controller.signal,
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; NewsChatBot/1.0)" },
+      });
+      clearTimeout(timeout);
+      if (!resp.ok) continue;
+      const html = await resp.text();
+      const match =
+        html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
+        html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+      if (match?.[1]) {
+        results.push({ url: source.url, imageUrl: match[1], title: source.title });
+      }
+    } catch (_) { /* skip slow/blocked sites */ }
+  }
+  return results;
+}
+
+function gatherImagesForTopics(today, topics) {
+  const images = [];
+  for (const topicId of topics) {
+    const news = getCachedNews(today, topicId);
+    if (news?.images?.length) {
+      for (const img of news.images) images.push({ ...img, topicId });
+    }
+  }
+  return images;
+}
+
 // ─── Pre-fetch scheduler ──────────────────────────────────────────────────────
 
 async function prefetchAllTopics() {
@@ -252,9 +289,10 @@ async function prefetchAllTopics() {
     }
     try {
       const { content, sources, headlines } = await fetchNewsForTopic(topic.id, apiKey);
-      saveNews(today, topic.id, content, sources, headlines);
+      const images = await scrapeOgImages(sources);
+      saveNews(today, topic.id, content, sources, headlines, images);
       fetched++;
-      console.log(`[prefetch] ✓ ${topic.label}`);
+      console.log(`[prefetch] ✓ ${topic.label} (${images.length} image${images.length !== 1 ? "s" : ""})`);
     } catch (err) {
       console.error(`[prefetch] ✗ ${topic.label}:`, err.message);
     }
@@ -335,7 +373,7 @@ async function start() {
     const cached = getCachedBriefing(today, topics);
     if (cached) {
       console.log(`[briefing] Cache hit for ${today}:${[...topics].sort().join(",")}`);
-      return res.json({ messages: cached.messages, sources: cached.sources, cached: true });
+      return res.json({ messages: cached.messages, sources: cached.sources, images: gatherImagesForTopics(today, topics), cached: true });
     }
 
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -383,7 +421,7 @@ async function start() {
       saveBriefing(today, topics, messages, sources);
       console.log(`[briefing] Cached result for ${today}:${[...topics].sort().join(",")}`);
 
-      res.json({ messages, sources, cached: false });
+      res.json({ messages, sources, images: gatherImagesForTopics(today, topics), cached: false });
     } catch (err) {
       console.error("[briefing] Error:", err.message);
       res.status(502).json({ error: err.message });
